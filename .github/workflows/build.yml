@@ -185,6 +185,12 @@ jobs:
           Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\pcap\ -Force
           Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\ -Force
 
+      - name: Force npcap include path into cl.exe
+        shell: pwsh
+        run: |
+          $pcapInc = "$env:GITHUB_WORKSPACE\app\node_modules\pcap\pcap"
+          echo "CL=/I`"C:\npcap-sdk\Include`" /I`"$pcapInc`"" >> $env:GITHUB_ENV
+
       - name: Rebuild native modules for Electron
         working-directory: app
         run: npx --yes @electron/rebuild -f -w frida
