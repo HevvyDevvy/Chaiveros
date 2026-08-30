@@ -178,9 +178,17 @@ jobs:
         working-directory: app
         run: npm install --ignore-scripts
 
+      - name: Vendor Npcap headers into pcap module
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path app\node_modules\pcap\pcap | Out-Null
+          Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\pcap\ -Force
+          Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\ -Force
+
       - name: Rebuild native modules for Electron
         working-directory: app
         run: npx --yes @electron/rebuild -f -w frida
+        
 
       - name: Build
         working-directory: app
