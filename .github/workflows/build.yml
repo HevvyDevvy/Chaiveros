@@ -108,6 +108,10 @@ jobs:
         working-directory: app
         run: npm install --ignore-scripts
 
+      
+      - name: Install Python setuptools (required by node-gyp on macOS)
+        run: pip3 install setuptools  
+
       - name: Rebuild native modules for Electron
         working-directory: app
         run: npx electron-rebuild -f -w frida,pcap
@@ -182,9 +186,6 @@ jobs:
       - name: Install npm dependencies
         working-directory: app
         run: npm install --ignore-scripts
-
-      - name: Install Python setuptools (required by node-gyp on macOS)
-        run: pip3 install setuptools   
 
       - name: Rebuild native modules for Electron
         working-directory: app
