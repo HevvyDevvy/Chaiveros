@@ -110,7 +110,7 @@ jobs:
 
       
       - name: Install Python setuptools (required by node-gyp on macOS)
-        run: pip3 install setuptools  
+        run: pip3 install setuptools --break-system-packages
 
       - name: Rebuild native modules for Electron
         working-directory: app
@@ -189,7 +189,7 @@ jobs:
 
       - name: Rebuild native modules for Electron
         working-directory: app
-        run: npx electron-rebuild -f -w frida
+        run: npx --yes @electron/rebuild -f -w frida
 
       - name: Build
         working-directory: app
