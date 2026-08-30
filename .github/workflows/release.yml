@@ -94,7 +94,7 @@ jobs:
           node-version: 20
           
       - name: Install Python setuptools (required by node-gyp on macOS)
-        run: pip3 install setuptools  
+        run: pip3 install setuptools --break-system-packages
 
       - name: Install + rebuild
         working-directory: app
@@ -169,7 +169,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npx electron-rebuild -f -w frida
+          npx --yes @electron/rebuild -f -w frida
 
       - name: Build + package
         working-directory: app
