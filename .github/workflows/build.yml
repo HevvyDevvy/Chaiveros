@@ -184,6 +184,9 @@ jobs:
         run: npm config set msvs_version 2022
              npm install --ignore-scripts
 
+      - name: Install Python setuptools (required by node-gyp on macOS)
+        run: pip3 install setuptools   
+
       - name: Rebuild native modules for Electron
         working-directory: app
         run: npx electron-rebuild -f -w frida,pcap
