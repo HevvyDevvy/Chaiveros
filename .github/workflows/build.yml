@@ -164,11 +164,11 @@ jobs:
           Invoke-WebRequest "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
           Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk -Force
           New-Item -ItemType Directory -Force -Path C:\npcap-sdk\Include\pcap | Out-Null
-          Copy-Item C:\npcap-sdk\Include\pcap.h C:\npcap-sdk\Include\pcap\pcap.h
+          Set-Content -Path C:\npcap-sdk\Include\pcap\pcap.h -Value '#include "../pcap.h"'
           echo "NPCAP_SDK=C:\npcap-sdk"              >> $env:GITHUB_ENV
           echo "LIB=C:\npcap-sdk\Lib\x64;$env:LIB"  >> $env:GITHUB_ENV
           echo "INCLUDE=C:\npcap-sdk\Include;$env:INCLUDE" >> $env:GITHUB_ENV
-          
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -182,8 +182,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path app\node_modules\pcap\pcap | Out-Null
-          Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\pcap\ -Force
           Copy-Item C:\npcap-sdk\Include\*.h app\node_modules\pcap\ -Force
+          Set-Content -Path app\node_modules\pcap\pcap\pcap.h -Value '#include "../pcap.h"'
 
       - name: Force npcap include path into cl.exe
         shell: pwsh
