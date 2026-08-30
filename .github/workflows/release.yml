@@ -92,6 +92,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          
+      - name: Install Python setuptools (required by node-gyp on macOS)
+        run: pip3 install setuptools  
 
       - name: Install + rebuild
         working-directory: app
