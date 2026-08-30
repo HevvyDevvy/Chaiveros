@@ -169,7 +169,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npx electron-rebuild -f -w frida,pcap
+          npx electron-rebuild -f -w frida
 
       - name: Build + package
         working-directory: app
