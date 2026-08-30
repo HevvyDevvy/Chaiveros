@@ -50,7 +50,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npx electron-rebuild -f -w frida,cap
+          npx electron-rebuild -f -w frida,pcap
 
       - name: Build + package
         working-directory: app
@@ -97,7 +97,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npx electron-rebuild -f -w frida,cap
+          npx electron-rebuild -f -w frida,pcap
 
       - name: Build + package
         working-directory: app
@@ -166,7 +166,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npx electron-rebuild -f -w frida,cap
+          npx electron-rebuild -f -w frida,pcap
 
       - name: Build + package
         working-directory: app
