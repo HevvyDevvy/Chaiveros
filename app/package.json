@@ -8,6 +8,7 @@
     "email": "contact@themadhattersplayground.com"
   },
   "license": "MIT",
+  "homepage": "https://github.com/HevvyDevvy/Chaiveros",
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
