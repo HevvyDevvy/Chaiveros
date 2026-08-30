@@ -76,11 +76,11 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Ransomware Defense"
-  include: resources/nsis-installer.nsh
+  
 
 # ── Publish (GitHub Releases) ─────────────────
 publish:
   provider: github
-  owner: DeadmanXXXII
+  owner: DeadmanXXXII, HevvyDevvy, V00D00
   repo: Ransomeware_Defense
   releaseType: release
