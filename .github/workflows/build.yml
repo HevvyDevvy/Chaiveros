@@ -139,7 +139,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════
   build-windows:
     name: 🪟 Windows — Kernel + Electron
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
