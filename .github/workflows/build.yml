@@ -189,7 +189,9 @@ jobs:
 
       - name: Rebuild native modules for Electron
         working-directory: app
-        run: npx --yes @electron/rebuild -f -w frida
+        env:
+         npm_config_msvs_version: 'C:\Program Files\Microsoft Visual Studio\18\Enterprise'
+          run: npx --yes @electron/rebuild -f -w frida
 
       - name: Build
         working-directory: app
