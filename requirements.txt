@@ -1,0 +1,25 @@
+# Ransomware Defense — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# Core cryptography
+cryptography>=41.0.0
+pycryptodome>=3.20.0
+
+# Process & memory inspection
+psutil>=5.9.0
+
+# Network packet capture (requires libpcap / Npcap on Windows)
+scapy>=2.5.0
+
+# Dynamic instrumentation (used for library hooking)
+frida>=16.0.0
+frida-tools>=12.0.0
+
+# Config file parsing
+PyYAML>=6.0
+
+# GUI (Labyrinth Key Generator) — stdlib on most platforms, listed for clarity
+# tkinter is bundled with CPython; no pip install needed on Linux install python3-tk
+
+# Optional: .NET interop on Windows (ChaveirosV2 C# hooks)
+# pythonnet>=3.0.0    # Uncomment if targeting .NET hooks on Windows

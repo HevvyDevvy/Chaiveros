@@ -1,0 +1,43 @@
+# ── Build output ──────────────────────────────
+out/
+dist/
+.vite/
+
+# ── Native module build artefacts ─────────────
+node_modules/
+*.node
+build/
+
+# ── Electron Builder cache ─────────────────────
+.cache/
+electron-builder-cache/
+
+# ── Log files (may contain key material) ──────
+*.rwdlog
+*.rwdlog.salt
+
+# ── macOS ──────────────────────────────────────
+.DS_Store
+*.dSYM/
+
+# ── Windows ────────────────────────────────────
+Thumbs.db
+desktop.ini
+
+# ── IDE ────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── Secrets / signing ─────────────────────────
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+
+# ── Environment ───────────────────────────────
+.env
+.env.local
+.env.production

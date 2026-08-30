@@ -1,0 +1,39 @@
+# Ransomware Defense — Configuration Template
+# -----------------------------------------------
+# Copy this file to config/config.yaml and fill in your values.
+# Never commit config.yaml — it is in .gitignore.
+
+defender:
+  # IP address of the CISO / defender machine running Listen-In.py
+  ciso_ip: "192.168.1.100"
+  # Port for the CISO listener (must match Listen-In.py)
+  ciso_port: 12345
+
+monitoring:
+  # Network interface to sniff packets on.
+  # Linux examples : eth0, ens3, enp0s3
+  # macOS examples : en0, en1
+  # Windows examples: Ethernet, Wi-Fi
+  network_interface: "eth0"
+
+  # Number of encryption key creation events that triggers an alert
+  alert_threshold: 5
+
+  # Root directory to watch for encrypted files (used by De-ransomeware.py)
+  watch_directory: "/home"
+
+  # Comma-separated list of file extensions to skip during decryption
+  skip_extensions: ".log,.tmp"
+
+logging:
+  # Log level: DEBUG | INFO | WARNING | ERROR
+  level: "INFO"
+
+  # Local log file.  Directory must exist and be writable.
+  file: "/var/log/ransomware-defense/chaveiros.log"
+
+  # Optional remote log forwarding (leave null to disable)
+  remote:
+    host: null       # e.g. "10.0.0.5"
+    port: null       # e.g. 514
+    protocol: "syslog"  # syslog | graylog | elk

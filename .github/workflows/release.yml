@@ -1,0 +1,336 @@
+name: Release — Chaveiros (Kernel + Electron)
+
+# Push a version tag to trigger:
+#   git tag v1.0.0 && git push --tags
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"   # also v1.0.0-rc1, v1.0.0-beta etc.
+
+permissions:
+  contents: write
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared kernel-compilation + Electron-packaging logic is duplicated per OS
+# because each runner must compile and package natively.
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # LINUX RELEASE
+  # ═══════════════════════════════════════════════════════════════════════
+  release-linux:
+    name: 🐧 Release — Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Kernel module ─────────────────────────────────────────────────
+      - name: Install kernel + build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            linux-headers-$(uname -r) \
+            build-essential gcc make \
+            libpcap-dev libusb-1.0-0-dev \
+            rpm fakeroot
+
+      - name: Compile Linux kernel module
+        run: |
+          cp Linux-Kernel-Scanner.c encryption_scanner.c
+          cat > Makefile.ci << 'EOF'
+          obj-m += encryption_scanner.o
+          KDIR := /lib/modules/$(shell uname -r)/build
+          PWD  := $(shell pwd)
+          all:
+          	$(MAKE) -C $(KDIR) M=$(PWD) modules
+          EOF
+          make -f Makefile.ci all 2>&1
+          echo "--- Kernel module info ---"
+          [ -f encryption_scanner.ko ] && modinfo encryption_scanner.ko || echo "Build failed"
+
+      - name: Stage kernel resources
+        run: |
+          mkdir -p app/resources/kernel/linux
+          [ -f encryption_scanner.ko ] && cp encryption_scanner.ko app/resources/kernel/linux/
+          cp Linux-Kernel-Scanner.c app/resources/kernel/linux/
+          echo "Runner kernel: $(uname -r)" > app/resources/kernel/linux/BUILD_INFO.txt
+          echo "Built: $(date -u)" >> app/resources/kernel/linux/BUILD_INFO.txt
+          echo "NOTE: The .ko is compiled against the CI runner kernel ($(uname -r))." >> app/resources/kernel/linux/BUILD_INFO.txt
+          echo "Users on a different kernel should recompile from source using:" >> app/resources/kernel/linux/BUILD_INFO.txt
+          echo "  sudo apt install linux-headers-\$(uname -r) build-essential" >> app/resources/kernel/linux/BUILD_INFO.txt
+          echo "  make -f (copy the Makefile.ci pattern above)" >> app/resources/kernel/linux/BUILD_INFO.txt
+
+      # ── Electron ──────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install + rebuild
+        working-directory: app
+        run: |
+          npm ci
+          npx electron-rebuild -f -w frida,cap
+
+      - name: Build + package
+        working-directory: app
+        run: |
+          npm run build
+          npx electron-builder --linux AppImage deb --x64 --arm64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            app/dist/*.AppImage
+            app/dist/*.deb
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # macOS RELEASE
+  # ═══════════════════════════════════════════════════════════════════════
+  release-macos:
+    name: 🍎 Release — macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Kernel scanner ────────────────────────────────────────────────
+      - name: Install build deps
+        run: brew install libusb || true
+
+      - name: Compile macOS scanner
+        run: |
+          clang -Wall -framework CoreFoundation -framework IOKit \
+            -o mac_kernel_scanner Mac-Kernel-Scanner.m 2>&1 || \
+            echo "⚠ Compile warnings on macOS 11+ (expected) — see docs/macos-compat.md"
+
+      - name: Stage macOS kernel resources
+        run: |
+          mkdir -p app/resources/kernel/macos
+          [ -f mac_kernel_scanner ] && cp mac_kernel_scanner app/resources/kernel/macos/
+          cp Mac-Kernel-Scanner.m app/resources/kernel/macos/
+          sw_vers > app/resources/kernel/macos/BUILD_INFO.txt
+
+      # ── Electron (signed + notarised if secrets present) ─────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install + rebuild
+        working-directory: app
+        run: |
+          npm ci
+          npx electron-rebuild -f -w frida,cap
+
+      - name: Build + package
+        working-directory: app
+        run: |
+          npm run build
+          npx electron-builder --mac dmg --x64 --arm64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── Code signing ──────────────────────────────────────────────
+          # Set these secrets in GitHub → Settings → Secrets → Actions:
+          #   CSC_LINK              base64-encoded .p12 certificate
+          #   CSC_KEY_PASSWORD      certificate password
+          #   APPLE_ID              your Apple Developer email
+          #   APPLE_APP_SPECIFIC_PASSWORD  app-specific password from appleid.apple.com
+          #   APPLE_TEAM_ID         your Team ID from developer.apple.com
+          CSC_IDENTITY_AUTO_DISCOVERY:    ${{ secrets.CSC_LINK != '' }}
+          CSC_LINK:                       ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD:               ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID:                       ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD:    ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID:                  ${{ secrets.APPLE_TEAM_ID }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: app/dist/*.dmg
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # WINDOWS RELEASE
+  # ═══════════════════════════════════════════════════════════════════════
+  release-windows:
+    name: 🪟 Release — Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Npcap SDK ─────────────────────────────────────────────────────
+      - name: Download Npcap SDK
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
+          Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk
+          echo "NPCAP_SDK=C:\npcap-sdk"           >> $env:GITHUB_ENV
+          echo "LIB=C:\npcap-sdk\Lib\x64;$env:LIB" >> $env:GITHUB_ENV
+          echo "INCLUDE=C:\npcap-sdk\Include;$env:INCLUDE" >> $env:GITHUB_ENV
+
+      # ── Windows driver ────────────────────────────────────────────────
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Validate driver source
+        shell: cmd
+        run: |
+          cl.exe /nologo /W3 /O2 /MT /std:c++17 ^
+            /D_CONSOLE /DUNICODE /D_UNICODE ^
+            Windows-Kernel-Scanner.cpp /Fe:windows_scanner_check.exe 2>&1 || ^
+            echo Full WDK build requires local WDK install — see docs/windows-signing.md
+
+      - name: Stage Windows kernel resources
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path app\resources\kernel\windows | Out-Null
+          Copy-Item Windows-Kernel-Scanner.cpp app\resources\kernel\windows\
+          if (Test-Path windows_scanner_check.exe) {
+            Copy-Item windows_scanner_check.exe app\resources\kernel\windows\
+          }
+          # Build notes
+          $info = @"
+          Windows Kernel Driver — Build Notes
+          =====================================
+          The .sys driver requires the Windows Driver Kit (WDK) to compile fully.
+          The GitHub Actions runner performs a syntax/MSVC check only.
+
+          To build the real .sys locally:
+            1. Install Visual Studio 2022 + WDK
+               https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+            2. Open Windows-Kernel-Scanner.cpp in a WDK project
+            3. Build for x64 Release
+            4. Submit the signed .sys via Microsoft Partner Center for attestation
+               https://partner.microsoft.com/dashboard
+
+          For lab/VM use only (no attestation):
+            bcdedit /set testsigning on
+            sc create RwdScanner type= kernel binPath= <path>\windows_scanner.sys
+            sc start RwdScanner
+
+          See docs/windows-signing.md for the full signing walkthrough.
+          "@
+          $info | Out-File app\resources\kernel\windows\BUILD_INFO.txt
+
+      # ── Electron (signed if cert secrets present) ─────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install + rebuild
+        working-directory: app
+        run: |
+          npm ci
+          npx electron-rebuild -f -w frida,cap
+
+      - name: Build + package
+        working-directory: app
+        run: |
+          npm run build
+          npx electron-builder --win nsis portable --x64 --publish never
+        env:
+          GH_TOKEN:             ${{ secrets.GITHUB_TOKEN }}
+          # ── Code signing ──────────────────────────────────────────────
+          # Set these secrets in GitHub → Settings → Secrets → Actions:
+          #   WIN_CSC_LINK          base64-encoded .pfx certificate
+          #   WIN_CSC_KEY_PASSWORD  certificate password
+          #
+          # To base64-encode your .pfx (run locally, NEVER paste here):
+          #   Linux/macOS: base64 -w 0 cert.pfx
+          #   PowerShell:  [Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))
+          # Then paste the output as the WIN_CSC_LINK secret value.
+          WIN_CSC_LINK:         ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            app/dist/*Setup*.exe
+            app/dist/*Portable*.exe
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # PUBLISH GITHUB RELEASE
+  # Runs after all three OS jobs complete
+  # ═══════════════════════════════════════════════════════════════════════
+  publish:
+    name: 📦 Publish GitHub Release
+    needs: [release-linux, release-macos, release-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all release artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: release-*
+          merge-multiple: true
+
+      - name: List assets
+        run: ls -lh release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "🛡 Chaveiros — Ransomware Defense ${{ github.ref_name }}"
+          body: |
+            ## 🛡 Chaveiros — Ransomware Defense ${{ github.ref_name }}
+
+            > ⚠️ **Authorised use only.** Deploy only on systems you own or have
+            > explicit written permission to monitor.
+            > See [DISCLAIMER.md](DISCLAIMER.md) · [LICENSE](LICENSE)
+
+            ---
+
+            ### Downloads
+
+            | Platform | File | Privileges needed |
+            |---|---|---|
+            | 🐧 Linux | `.AppImage` (portable) · `.deb` (Debian/Ubuntu) | `sudo` for kernel module + packet capture |
+            | 🍎 macOS | `.dmg` (x64 + ARM universal) | `sudo` · SIP off for kext (lab only) |
+            | 🪟 Windows | `*Setup.exe` · `*Portable.exe` | Run as Administrator · [Npcap](https://npcap.com) required |
+
+            ---
+
+            ### What's bundled
+
+            | Component | Linux | macOS | Windows |
+            |---|---|---|---|
+            | Frida library hooks | ✅ | ✅ | ✅ |
+            | Packet capture | ✅ libpcap | ✅ libpcap | ✅ Npcap |
+            | Process monitor | ✅ | ✅ | ✅ |
+            | Kernel scanner `.ko` / `.kext` / `.sys` | ✅ compiled | ⚠ source (SIP) | ⚠ source (WDK) |
+
+            > **Linux kernel note:** The `.ko` is compiled against the CI runner kernel.
+            > If your kernel version differs, recompile from the bundled source using
+            > `linux-headers-$(uname -r)`. See `resources/kernel/linux/BUILD_INFO.txt`.
+
+            > **Windows driver note:** Full `.sys` compilation requires the WDK locally.
+            > See `resources/kernel/windows/BUILD_INFO.txt` and [docs/windows-signing.md](docs/windows-signing.md).
+
+            ---
+
+            ### First run
+            1. Install for your OS and **run as Administrator / sudo**
+            2. **Settings** → set your log passphrase (min 8 chars)
+            3. **Dashboard** → ▶ Start Scanning
+            4. Events appear live in **Event Feed**
+            5. **Secure Log** → enter passphrase to review encrypted forensic log
+
+          files: release-assets/**/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

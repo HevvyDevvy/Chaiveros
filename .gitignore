@@ -1,0 +1,71 @@
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# ── Node / Electron ────────────────────────────
+app/node_modules/
+app/out/
+app/dist/
+app/.vite/
+app/electron-builder-cache/
+
+# ── Kernel build artefacts ─────────────────────
+*.ko
+*.o
+*.cmd
+*.mod
+*.mod.c
+*.symvers
+modules.order
+.tmp_versions/
+encryption_scanner.c
+mac_kernel_scanner
+windows_scanner.exe
+windows_scanner_check.exe
+*.dSYM/
+*.pdb
+*.ilk
+
+# ── Kernel resources (CI writes these) ─────────
+# Keep .gitkeep but ignore compiled outputs
+app/resources/kernel/linux/*.ko
+app/resources/kernel/linux/*.c
+app/resources/kernel/macos/mac_kernel_scanner
+app/resources/kernel/macos/*.m
+app/resources/kernel/windows/*.exe
+app/resources/kernel/windows/*.sys
+app/resources/kernel/windows/*.cpp
+app/resources/kernel/*/BUILD_INFO.txt
+
+# ── Secure log files ───────────────────────────
+*.rwdlog
+*.rwdlog.salt
+
+# ── Signing certificates — NEVER commit ────────
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+cert_pfx_base64.txt
+
+# ── Config with real values ────────────────────
+config/config.yaml
+
+# ── macOS ─────────────────────────────────────
+.DS_Store
+icon.iconset/
+
+# ── Windows ───────────────────────────────────
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

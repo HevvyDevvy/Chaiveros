@@ -1,0 +1,86 @@
+appId: com.themadhattersplayground.ransomware-defense
+productName: Ransomware Defense
+copyright: "Copyright © 2024 Blu Corbel"
+
+# Bundled kernel resources (compiled .ko/.sys/.kext packed into app)
+extraResources:
+  - from: resources/kernel/
+    to: kernel/
+    filter:
+      - "**/*"
+
+# Native module rebuild for target platform
+npmRebuild: true
+buildDependenciesFromSource: false
+
+# ── Linux ─────────────────────────────────────
+linux:
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+  category: Security
+  icon: resources/icons/icon.png
+  # AppImage needs no install; deb installs to /opt
+  synopsis: Ransomware key interception and defense
+  description: >
+    Desktop tool for monitoring, intercepting, and logging ransomware
+    encryption key activity. Authorised use only.
+  # Raw capabilities for packet capture without full root
+  executableArgs: ["--no-sandbox"]
+
+# ── macOS ─────────────────────────────────────
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64, universal]
+    - target: pkg
+      arch: [x64, arm64]
+  icon: resources/icons/icon.icns
+  category: public.app-category.utilities
+  # Network monitoring entitlements — required for packet capture
+  entitlementsFile: resources/entitlements.mac.plist
+  entitlementsInheritFile: resources/entitlements.mac.inherit.plist
+  # Notarisation (set env vars: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID)
+  notarize: false   # set to true when you have Apple Developer credentials
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+dmg:
+  title: "Ransomware Defense ${version}"
+  background: resources/dmg-background.png
+  window:
+    width: 540
+    height: 380
+
+# ── Windows ───────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: resources/icons/icon.ico
+  # Code signing — set env vars: CSC_LINK (pfx path), CSC_KEY_PASSWORD
+  # For kernel driver to load: attestation signing via MS Partner Center required
+  # See docs/windows-signing.md
+  signingHashAlgorithms: [sha256]
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  perMachine: true          # installs to Program Files (needed for driver)
+  allowElevation: true
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Ransomware Defense"
+  include: resources/nsis-installer.nsh
+
+# ── Publish (GitHub Releases) ─────────────────
+publish:
+  provider: github
+  owner: DeadmanXXXII
+  repo: Ransomeware_Defense
+  releaseType: release
