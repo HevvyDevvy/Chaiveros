@@ -167,17 +167,17 @@ jobs:
             Windows-Kernel-Scanner.cpp /Fe:windows_scanner_check.exe 2>&1
           echo Driver source validation complete
 
-      - name: Stage Windows kernel resources
+      - name: Download Npcap SDK
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path app\resources\kernel\windows | Out-Null
-          Copy-Item Windows-Kernel-Scanner.cpp app\resources\kernel\windows\
-          if (Test-Path windows_scanner_check.exe) {
-            Copy-Item windows_scanner_check.exe app\resources\kernel\windows\
-          }
-          "Built: $(Get-Date -Format u)" | Out-File app\resources\kernel\windows\BUILD_INFO.txt
-          "NOTE: Full .sys requires WDK — see docs/windows-signing.md" | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
-
+          Invoke-WebRequest "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
+          Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk
+          New-Item -ItemType Directory -Force -Path C:\npcap-sdk\Include\pcap | Out-Null
+          Copy-Item C:\npcap-sdk\Include\pcap.h C:\npcap-sdk\Include\pcap\pcap.h
+          echo "NPCAP_SDK=C:\npcap-sdk"              >> $env:GITHUB_ENV
+          echo "LIB=C:\npcap-sdk\Lib\x64;$env:LIB"  >> $env:GITHUB_ENV
+          echo "INCLUDE=C:\npcap-sdk\Include;$env:INCLUDE" >> $env:GITHUB_ENV
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
