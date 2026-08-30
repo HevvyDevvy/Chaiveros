@@ -23,7 +23,7 @@
   "dependencies": {
     "electron-store": "^8.1.0",
     "frida": "^16.5.0",
-    "cap": "^0.3.0",
+    "pcap": "^3.1.0",
     "systeminformation": "^5.22.0"
   },
   "devDependencies": {
