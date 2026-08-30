@@ -1,6 +1,6 @@
-appId: com.themadhattersplayground.ransomware-defense
-productName: Ransomware Defense
-copyright: "Copyright © 2024 Blu Corbel"
+appId: com.@TMHP.Chaiveros
+productName: Chaiveros
+copyright: "@TMHP.com©"
 
 # Bundled kernel resources (compiled .ko/.sys/.kext packed into app)
 extraResources:
@@ -48,7 +48,7 @@ mac:
   gatekeeperAssess: false
 
 dmg:
-  title: "Ransomware Defense ${version}"
+  title: "Chaiveros ${version}"
   background: resources/dmg-background.png
   window:
     width: 540
@@ -75,12 +75,12 @@ nsis:
   allowToChangeInstallationDirectory: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: "Ransomware Defense"
+  shortcutName: "Chaiveros"
   
 
 # ── Publish (GitHub Releases) ─────────────────
 publish:
   provider: github
-  owner: DeadmanXXXII, HevvyDevvy, V00D00
-  repo: Ransomeware_Defense
+  owner: HevvyDevvy
+  repo: Chaiveros
   releaseType: release
