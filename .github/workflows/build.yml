@@ -148,7 +148,7 @@ jobs:
         shell: pwsh
         run: |
           Invoke-WebRequest "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
-          Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk
+          Expand-Archive npcap-sdk.zip -DestinationPath C:\npcap-sdk -Force
           echo "NPCAP_SDK=C:\npcap-sdk"              >> $env:GITHUB_ENV
           echo "LIB=C:\npcap-sdk\Lib\x64;$env:LIB"  >> $env:GITHUB_ENV
           echo "INCLUDE=C:\npcap-sdk\Include;$env:INCLUDE" >> $env:GITHUB_ENV
