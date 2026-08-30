@@ -1,4 +1,4 @@
-import { Cap, decoders } from 'cap'
+import pcap from 'pcap'
 import { networkInterfaces } from 'os'
 
 const { PROTOCOL } = decoders
