@@ -180,6 +180,10 @@ jobs:
           # install on this runner, not the newer VS 18 install also present.
           vs-version: '[17.0,19.0)'
 
+      - name: Install Windows Driver Kit
+        run: choco install windowsdriverkit11 --yes --no-progress
+        timeout-minutes: 30
+
       - name: Build kernel driver (WDM, WDK)
         shell: cmd
         run: msbuild ChaiverosScanner.vcxproj /p:Configuration=Release /p:Platform=x64
