@@ -174,6 +174,11 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+        with:
+          # Pin to VS 2022 (17.x) — the WDK build customizations needed for
+          # ntddk.h/driver compilation are only registered against that
+          # install on this runner, not the newer VS 18 install also present.
+          vs-version: '[17.0,18.0)'
 
       - name: Build kernel driver (WDM, WDK)
         shell: cmd
