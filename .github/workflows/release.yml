@@ -190,7 +190,7 @@ jobs:
           # node-gyp already fixed this in v12.1.0, so we bypass @electron/rebuild
           # entirely here and rebuild each native module directly with a current,
           # globally-installed node-gyp instead.
-          npm install -g node-gyp@latest
+          npm install -g node-gyp@12
           $electronVersion = node -p "require('./node_modules/electron/package.json').version"
           Write-Host "Rebuilding native modules for Electron $electronVersion"
           foreach ($mod in @('frida','cap')) {
