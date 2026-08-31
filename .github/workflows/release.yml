@@ -180,9 +180,25 @@ jobs:
           npm install cap --no-save --ignore-scripts
           Remove-Item -Recurse -Force node_modules\pcap -ErrorAction SilentlyContinue
 
-      - name: Rebuild native modules for Electron
+      - name: Rebuild native modules for Electron (direct node-gyp, VS2026-compatible)
         working-directory: app
-        run: npx --yes @electron/rebuild -f -w frida,cap
+        shell: pwsh
+        run: |
+          # @electron/rebuild bundles its own archived, unmaintained node-gyp fork
+          # (@electron/node-gyp v10.2.0) that doesn't recognize Visual Studio 2026
+          # (internal version major 18) — see electron/rebuild#1264. Upstream
+          # node-gyp already fixed this in v12.1.0, so we bypass @electron/rebuild
+          # entirely here and rebuild each native module directly with a current,
+          # globally-installed node-gyp instead.
+          npm install -g node-gyp@latest
+          $electronVersion = node -p "require('./node_modules/electron/package.json').version"
+          Write-Host "Rebuilding native modules for Electron $electronVersion"
+          foreach ($mod in @('frida','cap')) {
+            Push-Location "node_modules\$mod"
+            node-gyp rebuild --target=$electronVersion --arch=x64 --dist-url=https://electronjs.org/headers
+            if ($LASTEXITCODE -ne 0) { throw "node-gyp rebuild failed for $mod" }
+            Pop-Location
+          }
 
       - name: Build + package
         working-directory: app
