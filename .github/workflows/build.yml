@@ -238,17 +238,30 @@ jobs:
           # (@electron/node-gyp v10.2.0) that doesn't recognize Visual Studio 2026
           # (internal version major 18) — see electron/rebuild#1264. Upstream
           # node-gyp already fixed this in v12.1.0, so we bypass @electron/rebuild
-          # entirely here and rebuild each native module directly with a current,
-          # globally-installed node-gyp instead.
+          # entirely here.
           npm install -g node-gyp@12
           $electronVersion = node -p "require('./node_modules/electron/package.json').version"
           Write-Host "Rebuilding native modules for Electron $electronVersion"
-          foreach ($mod in @('frida','cap')) {
-            Push-Location "node_modules\$mod"
-            node-gyp rebuild --target=$electronVersion --arch=x64 --dist-url=https://electronjs.org/headers
-            if ($LASTEXITCODE -ne 0) { throw "node-gyp rebuild failed for $mod" }
-            Pop-Location
-          }
+
+          # frida ships prebuilt binaries via `prebuild-install` and does NOT
+          # include its C++ source / binding.gyp in the published npm package
+          # at all (see frida/frida#556) — there is nothing for node-gyp to
+          # compile. Let its own install script fetch the prebuilt binary
+          # matching Electron's ABI instead of trying to build from source.
+          $env:npm_config_target       = $electronVersion
+          $env:npm_config_arch         = "x64"
+          $env:npm_config_target_arch  = "x64"
+          $env:npm_config_disturl      = "https://electronjs.org/headers"
+          $env:npm_config_runtime      = "electron"
+          npm rebuild frida
+          if ($LASTEXITCODE -ne 0) { throw "prebuild-install failed for frida" }
+
+          # cap has no prebuild mechanism and must be compiled from source —
+          # this is the module that actually needs VS2026-aware node-gyp.
+          Push-Location node_modules\cap
+          node-gyp rebuild --target=$electronVersion --arch=x64 --dist-url=https://electronjs.org/headers
+          if ($LASTEXITCODE -ne 0) { throw "node-gyp rebuild failed for cap" }
+          Pop-Location
 
       - name: Build
         working-directory: app
