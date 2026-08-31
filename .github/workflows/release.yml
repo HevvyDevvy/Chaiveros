@@ -138,6 +138,12 @@ jobs:
         with:
           arch: x64
 
+      - name: Force msvs_version for node-gyp
+        shell: pwsh
+        run: |
+          echo "npm_config_msvs_version=2022" >> $env:GITHUB_ENV
+          echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
+
       - name: Validate driver source
         shell: cmd
         continue-on-error: true
