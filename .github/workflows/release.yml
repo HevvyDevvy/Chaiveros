@@ -144,26 +144,24 @@ jobs:
           echo "npm_config_msvs_version=2022" >> $env:GITHUB_ENV
           echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
 
-      - name: Validate driver source
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build kernel driver (WDM, WDK)
         shell: cmd
-        continue-on-error: true
-        run: |
-          cl.exe /nologo /W3 /O2 /MT /std:c++17 ^
-            /D_CONSOLE /DUNICODE /D_UNICODE ^
-            Windows-Kernel-Scanner.cpp /Fe:windows_scanner_check.exe 2>&1
-          echo Driver validation complete
+        run: msbuild ChaiverosScanner.vcxproj /p:Configuration=Release /p:Platform=x64
 
       - name: Stage Windows kernel resources
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path app\resources\kernel\windows | Out-Null
           Copy-Item Windows-Kernel-Scanner.cpp app\resources\kernel\windows\
-          if (Test-Path windows_scanner_check.exe) {
-            Copy-Item windows_scanner_check.exe app\resources\kernel\windows\
+          if (Test-Path x64\Release\ChaiverosScanner.sys) {
+            Copy-Item x64\Release\ChaiverosScanner.sys app\resources\kernel\windows\
           }
           "Built: $(Get-Date -Format u)"                                | Out-File app\resources\kernel\windows\BUILD_INFO.txt
           "Tag: ${{ github.ref_name }}"                                 | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
-          "NOTE: Full .sys requires WDK — see docs/windows-signing.md"  | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
+          "NOTE: .sys is unsigned — requires attestation signing via MS Partner Center before it will load with driver signature enforcement on. See docs/windows-signing.md" | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
 
       - uses: actions/setup-node@v4
         with:
