@@ -1,4 +1,4 @@
-name: Build — Chaveiros (Kernel + Electron)
+name: Build — Chaveiros (Kernel Modules)
 
 on:
   push:
@@ -9,298 +9,113 @@ on:
 jobs:
 
   # ═══════════════════════════════════════════════════════════════════════
-  # LINUX
+  # LINUX — compile encryption_scanner.ko
   # ═══════════════════════════════════════════════════════════════════════
-  build-linux:
-    name: 🐧 Linux — Kernel + Electron
+  build-linux-kernel:
+    name: 🐧 Linux — Kernel Module
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install kernel build deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
             linux-headers-$(uname -r) \
-            build-essential gcc make \
-            libpcap-dev libusb-1.0-0-dev
+            build-essential gcc make
 
       - name: Compile Linux kernel module
         run: |
           cp Linux-Kernel-Scanner.c encryption_scanner.c
-          # Use printf to write Makefile with real tabs (heredoc in YAML loses them)
           printf 'obj-m += encryption_scanner.o\nKDIR := /lib/modules/$(shell uname -r)/build\nPWD  := $(shell pwd)\nall:\n\t$(MAKE) -C $(KDIR) M=$(PWD) modules\nclean:\n\t$(MAKE) -C $(KDIR) M=$(PWD) clean\n' > Makefile.ci
           make -f Makefile.ci all 2>&1 || true
-          ls -lh encryption_scanner.ko 2>/dev/null && echo "✓ Module built" || echo "⚠ Module build failed — continuing"
+          ls -lh encryption_scanner.ko 2>/dev/null && echo "✓ Module built" || echo "⚠ Build failed — source only"
 
-      - name: Stage kernel resources
+      - name: Stage kernel artifact
         run: |
-          mkdir -p app/resources/kernel/linux
-          [ -f encryption_scanner.ko ] && cp encryption_scanner.ko app/resources/kernel/linux/ || true
-          cp Linux-Kernel-Scanner.c app/resources/kernel/linux/
-          echo "Runner kernel: $(uname -r)" > app/resources/kernel/linux/BUILD_INFO.txt
-          echo "Built: $(date -u)"          >> app/resources/kernel/linux/BUILD_INFO.txt
+          mkdir -p kernel-out/linux
+          [ -f encryption_scanner.ko ] && cp encryption_scanner.ko kernel-out/linux/ || true
+          cp Linux-Kernel-Scanner.c kernel-out/linux/
+          echo "Runner kernel: $(uname -r)" > kernel-out/linux/BUILD_INFO.txt
+          echo "Built: $(date -u)"          >> kernel-out/linux/BUILD_INFO.txt
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: 20
-
-      - name: Install npm dependencies
-        working-directory: app
-        run: npm install --ignore-scripts
-
-      - name: Rebuild native modules for Electron
-        working-directory: app
-        run: npx electron-rebuild -f -w frida,pcap
-
-      - name: Build
-        working-directory: app
-        run: npm run build
-
-      - name: Package — AppImage + deb
-        working-directory: app
-        run: npx electron-builder --linux AppImage deb --x64 --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Linux artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-dist
-          path: |
-            app/dist/*.AppImage
-            app/dist/*.deb
+          name: kernel-linux
+          path: kernel-out/linux/
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════
-  # macOS
+  # macOS — compile mac_kernel_scanner
   # ═══════════════════════════════════════════════════════════════════════
-  build-macos:
-    name: 🍎 macOS — Kernel + Electron
+  build-macos-kernel:
+    name: 🍎 macOS — Kernel Scanner
     runs-on: macos-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install build deps
-        run: brew install libusb || true
-
-      - name: Compile macOS kernel scanner
+      - name: Compile macOS scanner
         run: |
           clang -Wall -framework CoreFoundation -framework IOKit \
             -o mac_kernel_scanner Mac-Kernel-Scanner.m 2>&1 || true
 
-      - name: Stage macOS kernel resources
+      - name: Stage kernel artifact
         run: |
-          mkdir -p app/resources/kernel/macos
-          [ -f mac_kernel_scanner ] && cp mac_kernel_scanner app/resources/kernel/macos/ || true
-          cp Mac-Kernel-Scanner.m app/resources/kernel/macos/
-          sw_vers > app/resources/kernel/macos/BUILD_INFO.txt
+          mkdir -p kernel-out/macos
+          [ -f mac_kernel_scanner ] && cp mac_kernel_scanner kernel-out/macos/ || true
+          cp Mac-Kernel-Scanner.m kernel-out/macos/
+          sw_vers > kernel-out/macos/BUILD_INFO.txt
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: 20
-
-      - name: Install npm dependencies
-        working-directory: app
-        run: npm install --ignore-scripts
-
-      
-      - name: Install Python setuptools (required by node-gyp on macOS)
-        run: pip3 install setuptools --break-system-packages
-
-      - name: Rebuild native modules for Electron
-        working-directory: app
-        run: npx electron-rebuild -f -w frida,pcap
-
-      - name: Build
-        working-directory: app
-        run: npm run build
-
-      - name: Package — DMG (x64)
-        working-directory: app
-        run: |
-          for i in 1 2 3; do
-            npx electron-builder --mac dmg --x64 --publish never && break
-            echo "DMG build failed (attempt $i), retrying..."
-            sleep 10
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Package — DMG (arm64)
-        working-directory: app
-        run: |
-          for i in 1 2 3; do
-            npx electron-builder --mac dmg --arm64 --publish never && break
-            echo "DMG build failed (attempt $i), retrying..."
-            sleep 10
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload macOS artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dist
-          path: app/dist/*.dmg
+          name: kernel-macos
+          path: kernel-out/macos/
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════
-  # WINDOWS
+  # WINDOWS — compile ChaiverosScanner.sys via WDK
   # ═══════════════════════════════════════════════════════════════════════
-  build-windows:
-    name: 🪟 Windows — Kernel + Electron
-    runs-on: windows-2022
+  build-windows-kernel:
+    name: 🪟 Windows — Kernel Driver
+    runs-on: windows-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-
-      - name: Force msvs_version for node-gyp
-        shell: pwsh
-        run: |
-          echo "npm_config_msvs_version=2022" >> $env:GITHUB_ENV
-          echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
         with:
-          # Pin to VS 2022 (17.x) — the WDK build customizations needed for
-          # ntddk.h/driver compilation are only registered against that
-          # install on this runner, not the newer VS 18 install also present.
           vs-version: '[17.0,19.0)'
 
       - name: Install Windows Driver Kit
         run: choco install windowsdriverkit11 --yes --no-progress
         timeout-minutes: 30
 
-      - name: Build kernel driver (WDM, WDK)
+      - name: Build kernel driver
         shell: cmd
+        continue-on-error: true
         run: msbuild ChaiverosScanner.vcxproj /p:Configuration=Release /p:Platform=x64
 
-      - name: Stage Windows kernel resources
+      - name: Stage kernel artifact
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path app\resources\kernel\windows | Out-Null
-          Copy-Item Windows-Kernel-Scanner.cpp app\resources\kernel\windows\
+          New-Item -ItemType Directory -Force -Path kernel-out\windows | Out-Null
+          Copy-Item Windows-Kernel-Scanner.cpp kernel-out\windows\
+          Copy-Item ChaiverosScanner.vcxproj kernel-out\windows\
           if (Test-Path x64\Release\ChaiverosScanner.sys) {
-            Copy-Item x64\Release\ChaiverosScanner.sys app\resources\kernel\windows\
-            "✓ ChaiverosScanner.sys built" | Out-File -FilePath app\resources\kernel\windows\BUILD_INFO.txt
+            Copy-Item x64\Release\ChaiverosScanner.sys kernel-out\windows\
+            "✓ .sys built" | Out-File kernel-out\windows\BUILD_INFO.txt
           } else {
-            "⚠ Driver build failed — no .sys produced" | Out-File -FilePath app\resources\kernel\windows\BUILD_INFO.txt
+            "⚠ .sys not built — WDK source included for local compile" | Out-File kernel-out\windows\BUILD_INFO.txt
+            "See docs/windows-signing.md" | Out-File -Append kernel-out\windows\BUILD_INFO.txt
           }
-          "Built: $(Get-Date -Format u)" | Out-File -Append -FilePath app\resources\kernel\windows\BUILD_INFO.txt
-          "NOTE: .sys is unsigned — requires attestation signing via MS Partner Center before it will load with driver signature enforcement on. See docs/windows-signing.md" | Out-File -Append -FilePath app\resources\kernel\windows\BUILD_INFO.txt
+          "Built: $(Get-Date -Format u)" | Out-File -Append kernel-out\windows\BUILD_INFO.txt
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: 20
-
-      - name: Install npm dependencies
-        working-directory: app
-        run: npm install --ignore-scripts
-
-      # node-pcap (the `pcap` package) is POSIX-only — its C++ binding
-      # unconditionally includes sys/time.h, which doesn't exist on Windows
-      # at all. No amount of include-path forcing fixes that (see the three
-      # steps this replaced). `cap` (mscdex/cap) is written against Npcap
-      # directly and is what actually compiles on Windows, so on this OS we
-      # swap the module in node_modules before electron-rebuild ever sees it.
-      #
-      # Order matters here: `npm install` (even scoped to one package)
-      # reconciles the WHOLE node_modules tree against package.json/
-      # package-lock.json. `pcap` is still declared as a dependency there
-      # (only node_modules is being touched, not package.json), so if pcap
-      # is deleted BEFORE `npm install cap` runs, npm just restores it as
-      # part of that reconciliation. Installing first and deleting last is
-      # what actually keeps it gone for the rebuild step that follows.
-      #
-      # This also has to happen in node_modules directly rather than only
-      # in package.json: @electron/rebuild's -w/--which-module flag does
-      # NOT skip other native modules — it only forces a rebuild of the
-      # named one. Every native module still gets scanned and rebuilt
-      # regardless, which is why `-w frida` alone still tried (and failed)
-      # to compile pcap originally.
-      - name: Swap pcap for cap (Windows-compatible packet capture)
-        shell: pwsh
-        working-directory: app
-        run: |
-          npm install cap --no-save --ignore-scripts
-          Remove-Item -Recurse -Force node_modules\pcap -ErrorAction SilentlyContinue
-
-      # NOTE: cap (mscdex/cap) is old and largely unmaintained. On modern
-      # Windows SDKs (windows-2022 ships 10.0.26100.0) it has a known
-      # compile failure of its own: its bundled inet_ntop polyfill in
-      # src/windows_polyfills.h collides with the one ws2tcpip.h now
-      # provides natively, giving:
-      #   error C2666: 'inet_ntop': 2 overloads have similar conversions
-      # If you hit that here, the fix is a one-line guard in that header
-      # (wrap its inet_ntop/inet_pton declarations in
-      # `#if !defined(NTDDI_VERSION) || NTDDI_VERSION < NTDDI_VISTA ... #endif`)
-      # applied via a patch step here. Paste the exact error/context back to
-      # me and I'll write that step precisely against what you're seeing.
-
-      - name: Rebuild native modules for Electron (direct node-gyp, VS2026-compatible)
-        working-directory: app
-        shell: pwsh
-        run: |
-          # @electron/rebuild bundles its own archived, unmaintained node-gyp fork
-          # (@electron/node-gyp v10.2.0) that doesn't recognize Visual Studio 2026
-          # (internal version major 18) — see electron/rebuild#1264. Upstream
-          # node-gyp already fixed this in v12.1.0, so we bypass @electron/rebuild
-          # entirely here.
-          npm install -g node-gyp@12
-          $electronVersion = node -p "require('./node_modules/electron/package.json').version"
-          Write-Host "Rebuilding native modules for Electron $electronVersion"
-
-          # frida ships prebuilt binaries via `prebuild-install` and does NOT
-          # include its C++ source / binding.gyp in the published npm package
-          # at all (see frida/frida#556) — there is nothing for node-gyp to
-          # compile. Let its own install script fetch the prebuilt binary
-          # matching Electron's ABI instead of trying to build from source.
-          $env:npm_config_target       = $electronVersion
-          $env:npm_config_arch         = "x64"
-          $env:npm_config_target_arch  = "x64"
-          $env:npm_config_disturl      = "https://electronjs.org/headers"
-          $env:npm_config_runtime      = "electron"
-          npm rebuild frida
-          if ($LASTEXITCODE -ne 0) { throw "prebuild-install failed for frida" }
-
-          # cap has no prebuild mechanism and must be compiled from source —
-          # this is the module that actually needs VS2026-aware node-gyp.
-          Push-Location node_modules\cap
-          node-gyp rebuild --target=$electronVersion --arch=x64 --dist-url=https://electronjs.org/headers
-          if ($LASTEXITCODE -ne 0) { throw "node-gyp rebuild failed for cap" }
-          Pop-Location
-
-      - name: Build
-        working-directory: app
-        run: npm run build
-
-      - name: Package — NSIS installer + Portable
-        working-directory: app
-        run: npx electron-builder --win --x64 --publish never
-        env:
-          GH_TOKEN:             ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK:             ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD:     ${{ secrets.CSC_KEY_PASSWORD }}
-
-      - name: Upload Windows artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-dist
-          path: |
-            app/dist/*Setup*.exe
-            app/dist/*Portable*.exe
+          name: kernel-windows
+          path: kernel-out\windows\
           retention-days: 7

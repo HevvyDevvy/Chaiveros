@@ -1,4 +1,4 @@
-name: Release — Chaveiros (Kernel + Electron)
+name: Release — Chaveiros (Electron App)
 
 on:
   push:
@@ -12,36 +12,33 @@ permissions:
 
 jobs:
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # LINUX — pull kernel artifact, build + package Electron app
+  # ═══════════════════════════════════════════════════════════════════════
   release-linux:
     name: 🐧 Release — Linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kernel + build deps
+      - name: Install build deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            linux-headers-$(uname -r) \
-            build-essential gcc make \
             libpcap-dev libusb-1.0-0-dev \
             rpm fakeroot
 
-      - name: Compile Linux kernel module
-        run: |
-          cp Linux-Kernel-Scanner.c encryption_scanner.c
-          printf 'obj-m += encryption_scanner.o\nKDIR := /lib/modules/$(shell uname -r)/build\nPWD  := $(shell pwd)\nall:\n\t$(MAKE) -C $(KDIR) M=$(PWD) modules\nclean:\n\t$(MAKE) -C $(KDIR) M=$(PWD) clean\n' > Makefile.ci
-          make -f Makefile.ci all 2>&1 || true
-          ls -lh encryption_scanner.ko 2>/dev/null && echo "✓ Module built" || echo "⚠ Continuing without .ko"
+      - name: Download Linux kernel artifact from build workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build.yml
+          name: kernel-linux
+          path: app/resources/kernel/linux/
+          branch: main
+          if_no_artifact_found: warn
 
-      - name: Stage kernel resources
-        run: |
-          mkdir -p app/resources/kernel/linux
-          [ -f encryption_scanner.ko ] && cp encryption_scanner.ko app/resources/kernel/linux/ || true
-          cp Linux-Kernel-Scanner.c app/resources/kernel/linux/
-          echo "Runner kernel: $(uname -r)" > app/resources/kernel/linux/BUILD_INFO.txt
-          echo "Built: $(date -u)"          >> app/resources/kernel/linux/BUILD_INFO.txt
-          echo "Tag: ${{ github.ref_name }}" >> app/resources/kernel/linux/BUILD_INFO.txt
+      - name: Confirm kernel resources
+        run: ls -lh app/resources/kernel/linux/ || echo "⚠ No kernel artifact — continuing without"
 
       - uses: actions/setup-node@v4
         with:
@@ -50,7 +47,7 @@ jobs:
       - name: Install + rebuild
         working-directory: app
         run: |
-          npm install
+          npm install --ignore-scripts
           npx electron-rebuild -f -w frida,pcap
 
       - name: Build + package
@@ -58,8 +55,6 @@ jobs:
         run: |
           npm run build
           npx electron-builder --linux AppImage deb --x64 --arm64 --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -68,6 +63,9 @@ jobs:
             app/dist/*.AppImage
             app/dist/*.deb
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # macOS — pull kernel artifact, build + package Electron app
+  # ═══════════════════════════════════════════════════════════════════════
   release-macos:
     name: 🍎 Release — macOS
     runs-on: macos-latest
@@ -77,30 +75,29 @@ jobs:
       - name: Install build deps
         run: brew install libusb || true
 
-      - name: Compile macOS scanner
-        run: |
-          clang -Wall -framework CoreFoundation -framework IOKit \
-            -o mac_kernel_scanner Mac-Kernel-Scanner.m 2>&1 || true
+      - name: Download macOS kernel artifact from build workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build.yml
+          name: kernel-macos
+          path: app/resources/kernel/macos/
+          branch: main
+          if_no_artifact_found: warn
 
-      - name: Stage macOS kernel resources
-        run: |
-          mkdir -p app/resources/kernel/macos
-          [ -f mac_kernel_scanner ] && cp mac_kernel_scanner app/resources/kernel/macos/ || true
-          cp Mac-Kernel-Scanner.m app/resources/kernel/macos/
-          sw_vers > app/resources/kernel/macos/BUILD_INFO.txt
-          echo "Tag: ${{ github.ref_name }}" >> app/resources/kernel/macos/BUILD_INFO.txt
+      - name: Confirm kernel resources
+        run: ls -lh app/resources/kernel/macos/ || echo "⚠ No kernel artifact — continuing without"
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          
-      - name: Install Python setuptools (required by node-gyp on macOS)
+
+      - name: Install Python setuptools
         run: pip3 install setuptools --break-system-packages
 
       - name: Install + rebuild
         working-directory: app
         run: |
-          npm install
+          npm install --ignore-scripts
           npx electron-rebuild -f -w frida,pcap
 
       - name: Build + package
@@ -109,22 +106,45 @@ jobs:
           npm run build
           npx electron-builder --mac dmg --x64 --arm64 --publish never
         env:
-          GH_TOKEN:                            ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY:         false
-          APPLE_ID:                            ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD:         ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID:                       ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN:                         ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY:      ${{ secrets.CSC_LINK != '' }}
+          CSC_LINK:                         ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD:                 ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID:                         ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD:      ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID:                    ${{ secrets.APPLE_TEAM_ID }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: release-macos
           path: app/dist/*.dmg
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # WINDOWS — pull kernel artifact, build + package Electron app
+  # ═══════════════════════════════════════════════════════════════════════
   release-windows:
     name: 🪟 Release — Windows
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Windows kernel artifact from build workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build.yml
+          name: kernel-windows
+          path: app/resources/kernel/windows/
+          branch: main
+          if_no_artifact_found: warn
+
+      - name: Confirm kernel resources
+        shell: pwsh
+        run: |
+          if (Test-Path app\resources\kernel\windows\) {
+            Get-ChildItem app\resources\kernel\windows\
+          } else {
+            Write-Host "⚠ No kernel artifact — continuing without"
+          }
 
       - name: Download Npcap SDK
         shell: pwsh
@@ -135,92 +155,28 @@ jobs:
           echo "LIB=C:\npcap-sdk\Lib\x64;$env:LIB"  >> $env:GITHUB_ENV
           echo "INCLUDE=C:\npcap-sdk\Include;$env:INCLUDE" >> $env:GITHUB_ENV
 
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Force msvs_version for node-gyp
-        shell: pwsh
-        run: |
-          echo "npm_config_msvs_version=2022" >> $env:GITHUB_ENV
-          echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-        with:
-          # Pin to VS 2022 (17.x) — the WDK build customizations needed for
-          # ntddk.h/driver compilation are only registered against that
-          # install on this runner, not the newer VS 18 install also present.
-          vs-version: '[17.0,19.0)'
-          
-      - name: Install Windows Driver Kit
-        run: choco install windowsdriverkit11 --yes --no-progress
-        timeout-minutes: 30
-          
-
-      - name: Build kernel driver (WDM, WDK)
-        shell: cmd
-        run: msbuild ChaiverosScanner.vcxproj /p:Configuration=Release /p:Platform=x64
-
-      - name: Stage Windows kernel resources
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path app\resources\kernel\windows | Out-Null
-          Copy-Item Windows-Kernel-Scanner.cpp app\resources\kernel\windows\
-          if (Test-Path x64\Release\ChaiverosScanner.sys) {
-            Copy-Item x64\Release\ChaiverosScanner.sys app\resources\kernel\windows\
-          }
-          "Built: $(Get-Date -Format u)"                                | Out-File app\resources\kernel\windows\BUILD_INFO.txt
-          "Tag: ${{ github.ref_name }}"                                 | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
-          "NOTE: .sys is unsigned — requires attestation signing via MS Partner Center before it will load with driver signature enforcement on. See docs/windows-signing.md" | Out-File -Append app\resources\kernel\windows\BUILD_INFO.txt
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      - name: Force msvs_version for node-gyp
+        shell: pwsh
+        run: |
+          echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
+          npm config set msvs_version 2022 --global
+
       - name: Install + rebuild
         working-directory: app
-        run: npm install --ignore-scripts
+        run: |
+          npm install --ignore-scripts
+          npx electron-rebuild -f -w frida
 
       - name: Swap pcap for cap (Windows-compatible packet capture)
         working-directory: app
         shell: pwsh
         run: |
-          npm install cap --no-save --ignore-scripts
-          Remove-Item -Recurse -Force node_modules\pcap -ErrorAction SilentlyContinue
-
-      - name: Rebuild native modules for Electron (direct node-gyp, VS2026-compatible)
-        working-directory: app
-        shell: pwsh
-        run: |
-          # @electron/rebuild bundles its own archived, unmaintained node-gyp fork
-          # (@electron/node-gyp v10.2.0) that doesn't recognize Visual Studio 2026
-          # (internal version major 18) — see electron/rebuild#1264. Upstream
-          # node-gyp already fixed this in v12.1.0, so we bypass @electron/rebuild
-          # entirely here.
-          npm install -g node-gyp@12
-          $electronVersion = node -p "require('./node_modules/electron/package.json').version"
-          Write-Host "Rebuilding native modules for Electron $electronVersion"
-
-          # frida ships prebuilt binaries via `prebuild-install` and does NOT
-          # include its C++ source / binding.gyp in the published npm package
-          # at all (see frida/frida#556) — there is nothing for node-gyp to
-          # compile. Let its own install script fetch the prebuilt binary
-          # matching Electron's ABI instead of trying to build from source.
-          $env:npm_config_target       = $electronVersion
-          $env:npm_config_arch         = "x64"
-          $env:npm_config_target_arch  = "x64"
-          $env:npm_config_disturl      = "https://electronjs.org/headers"
-          $env:npm_config_runtime      = "electron"
-          npm rebuild frida
-          if ($LASTEXITCODE -ne 0) { throw "prebuild-install failed for frida" }
-
-          # cap has no prebuild mechanism and must be compiled from source —
-          # this is the module that actually needs VS2026-aware node-gyp.
-          Push-Location node_modules\cap
-          node-gyp rebuild --target=$electronVersion --arch=x64 --dist-url=https://electronjs.org/headers
-          if ($LASTEXITCODE -ne 0) { throw "node-gyp rebuild failed for cap" }
-          Pop-Location
+          (Get-Content package.json) -replace '"pcap"', '"cap"' | Set-Content package.json
+          npm install cap --ignore-scripts
 
       - name: Build + package
         working-directory: app
@@ -229,8 +185,8 @@ jobs:
           npx electron-builder --win nsis portable --x64 --publish never
         env:
           GH_TOKEN:             ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK:             ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD:     ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK:         ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -239,13 +195,13 @@ jobs:
             app/dist/*Setup*.exe
             app/dist/*Portable*.exe
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # PUBLISH — create GitHub Release with all three platform installers
+  # ═══════════════════════════════════════════════════════════════════════
   publish:
     name: 📦 Publish GitHub Release
     needs: [release-linux, release-macos, release-windows]
     runs-on: ubuntu-latest
-    # Only actually publish on a real tag push — a manual workflow_dispatch
-    # run (used for testing the pipeline) builds and packages everything
-    # the same way, but stops here instead of creating a public release.
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
@@ -267,7 +223,8 @@ jobs:
           body: |
             ## 🛡 Chaveiros — Ransomware Defense ${{ github.ref_name }}
 
-            > ⚠️ **Authorised use only.** Deploy only on systems you own or have explicit written permission to monitor.
+            > ⚠️ **Authorised use only.** Deploy only on systems you own or have
+            > explicit written permission to monitor.
 
             ### Downloads
             | Platform | File | Notes |
