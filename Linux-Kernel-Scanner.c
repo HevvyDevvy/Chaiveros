@@ -3,6 +3,7 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/ktime.h>
+#include <linux/timekeeping.h>
 #include <linux/uaccess.h>
 #include <linux/fs.h>
 
@@ -15,11 +16,11 @@ static int key_creation_count = 0;
 
 static void log_key_creation(pid_t pid, const char *key) {
     char log_entry[256];
-    struct timespec ts;
+    struct timespec64 ts;
 
-    getnstimeofday(&ts);
-    snprintf(log_entry, sizeof(log_entry), "PID: %d | Key Created: %s | Timestamp: %lu.%09lu\n",
-             pid, key, ts.tv_sec, ts.tv_nsec);
+    ktime_get_real_ts64(&ts);
+    snprintf(log_entry, sizeof(log_entry), "PID: %d | Key Created: %s | Timestamp: %lld.%09lu\n",
+             pid, key, (long long)ts.tv_sec, (unsigned long)ts.tv_nsec);
 
     // Log to the specified file
     log_file = filp_open(LOG_FILE, O_WRONLY | O_APPEND | O_CREAT, 0644);

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <libproc.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 
@@ -19,7 +18,7 @@ void log_key_creation(pid_t pid, const char *key) {
 }
 
 void MonitorKeyCreation() {
-    pid_t pid = proc_selfpid();
+    pid_t pid = getpid();
     const char *dummy_key = "dummy_key"; // Placeholder
     log_key_creation(pid, dummy_key);
 
