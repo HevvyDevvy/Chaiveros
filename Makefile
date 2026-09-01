@@ -13,17 +13,17 @@
 MODULE_NAME  := encryption_scanner
 obj-m        += $(MODULE_NAME).o
 
-# Source rename: Linux-Kernel-Scanner.c → encryption_scanner.c
-# (kernel build system requires source and module name to match)
-$(MODULE_NAME).o: Linux-Kernel-Scanner.c
-	cp Linux-Kernel-Scanner.c $(MODULE_NAME).c
-
 KDIR  := /lib/modules/$(shell uname -r)/build
 PWD   := $(shell pwd)
 
 .PHONY: all clean install remove
 
-all: $(MODULE_NAME).o
+# Source rename: Linux-Kernel-Scanner.c → encryption_scanner.c
+# (kernel build system requires source and module name to match)
+$(MODULE_NAME).c: Linux-Kernel-Scanner.c
+	cp Linux-Kernel-Scanner.c $(MODULE_NAME).c
+
+all: $(MODULE_NAME).c
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 clean:

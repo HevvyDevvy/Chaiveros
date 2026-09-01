@@ -1,7 +1,8 @@
-#include <kern/host.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <libproc.h>
 #include <mach/mach.h>
-#include <libkern/libkern.h>
-#include <sys/systm.h>
+#include <mach/mach_time.h>
 
 #define LOG_FILE "/var/log/encryption_keys.log"
 #define ALERT_THRESHOLD 5
