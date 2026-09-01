@@ -229,8 +229,8 @@ jobs:
           npx electron-builder --win nsis portable --x64 --publish never
         env:
           GH_TOKEN:             ${{ secrets.GITHUB_TOKEN }}
-          WIN_CSC_LINK:         ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_LINK:             ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD:     ${{ secrets.CSC_KEY_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         with:
