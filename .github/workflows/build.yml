@@ -104,7 +104,7 @@ jobs:
           $wdkLib  = "$wdkBase\Lib\$wdkVer"
           Write-Host "WDK: $wdkVer — ntddk.h exists: $(Test-Path $wdkInc\km\ntddk.h)"
 
-          & cl.exe /nologo /W4 /WX- /O2 /GS- /kernel /TC `
+          & cl.exe /nologo /W4 /WX- /O2 /GS- /kernel /TP `
             /I "$wdkInc\km" /I "$wdkInc\shared" /I "$wdkInc\ucrt" `
             /D NDEBUG /D _AMD64_=1 /D AMD64 /D _WIN64 `
             /D _WIN32_WINNT=0x0A00 /D WINVER=0x0A00 /D WINNT=1 `
@@ -120,9 +120,9 @@ jobs:
           }
 
 
-        - name: Package driver for Microsoft Partner Center submission
-          shell: pwsh
-          continue-on-error: true
+      - name: Package driver for Microsoft Partner Center submission
+        shell: pwsh
+        continue-on-error: true
         run: |
           if (-not (Test-Path ChaiverosScanner.sys)) {
             Write-Host "⚠ No .sys — skipping CAB packaging"
