@@ -94,19 +94,86 @@ jobs:
         run: choco install windowsdriverkit11 --yes --no-progress
         timeout-minutes: 30
 
-      - name: Build kernel driver
-        shell: cmd
+      - name: Locate WDK and compile kernel driver
+        shell: pwsh
         continue-on-error: true
-        run: msbuild ChaiverosScanner.vcxproj /p:Configuration=Release /p:Platform=x64
+        run: |
+          $wdkBase = "C:\Program Files (x86)\Windows Kits\10"
+          $wdkVer  = (Get-ChildItem "$wdkBase\Include" | Where-Object {$_.Name -match '^\d+'} | Sort-Object -Descending | Select-Object -First 1).Name
+          $wdkInc  = "$wdkBase\Include\$wdkVer"
+          $wdkLib  = "$wdkBase\Lib\$wdkVer"
+          Write-Host "WDK: $wdkVer — ntddk.h exists: $(Test-Path $wdkInc\km\ntddk.h)"
 
+          & cl.exe /nologo /W4 /WX- /O2 /GS- /kernel /TC `
+            /I "$wdkInc\km" /I "$wdkInc\shared" /I "$wdkInc\ucrt" `
+            /D NDEBUG /D _AMD64_=1 /D AMD64 /D _WIN64 `
+            /D _WIN32_WINNT=0x0A00 /D WINVER=0x0A00 /D WINNT=1 `
+            /D POOL_NX_OPTIN=1 /D _KERNEL_MODE `
+            Windows-Kernel-Scanner.cpp /Fo:ChaiverosScanner.obj
+
+          if (Test-Path ChaiverosScanner.obj) {
+            & link.exe /NOLOGO /DRIVER /WX- /ALIGN:0x80 /NODEFAULTLIB `
+              /SUBSYSTEM:NATIVE,10.00 /MACHINE:X64 /KERNEL `
+              /PDB:ChaiverosScanner.pdb /OUT:ChaiverosScanner.sys `
+              /LIBPATH:"$wdkLib\km\x64" `
+              ntoskrnl.lib hal.lib wmilib.lib ChaiverosScanner.obj
+          }
+
+
+        - name: Package driver for Microsoft Partner Center submission
+          shell: pwsh
+          continue-on-error: true
+        run: |
+          if (-not (Test-Path ChaiverosScanner.sys)) {
+            Write-Host "⚠ No .sys — skipping CAB packaging"
+            exit 0
+          }
+          # Copy INF alongside the driver
+          Copy-Item ChaiverosScanner.inf . -ErrorAction SilentlyContinue
+          
+          # Generate security catalog
+          & inf2cat /driver:. /os:10_x64,Server10_x64 /verbose
+          
+          # Sign the catalog and .sys with EV cert (uses WIN_CSC_LINK secret)
+          # This is done by electron-builder for the app — here we sign manually
+          
+          # Create .cab for Partner Center attestation submission
+          New-Item -ItemType Directory -Force -Path cab-submission | Out-Null
+          Copy-Item ChaiverosScanner.sys  cab-submission\
+          Copy-Item ChaiverosScanner.inf  cab-submission\
+          if (Test-Path ChaiverosScanner.cat) {
+            Copy-Item ChaiverosScanner.cat cab-submission\
+          }
+          
+          # Build the .cab
+          $cabDdf = @"
+          .OPTION EXPLICIT
+          .Set CabinetNameTemplate=ChaiverosScanner_PartnerCenter.cab
+          .Set DiskDirectoryTemplate=.
+          .Set CompressionType=MSZIP
+          .Set UniqueFiles=ON
+          .Set Cabinet=ON
+          .Set DiskLabel1=Chaveiros Driver Submission
+          cab-submission\ChaiverosScanner.sys
+          cab-submission\ChaiverosScanner.inf
+          "@
+          if (Test-Path ChaiverosScanner.cat) { $cabDdf += "`ncab-submission\ChaiverosScanner.cat" }
+          $cabDdf | Out-File -Encoding ASCII submission.ddf
+          & makecab /F submission.ddf
+          
+          if (Test-Path ChaiverosScanner_PartnerCenter.cab) {
+            Copy-Item ChaiverosScanner_PartnerCenter.cab kernel-out\windows\
+            Write-Host "✓ CAB ready for Partner Center attestation submission"
+          }
+          
       - name: Stage kernel artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path kernel-out\windows | Out-Null
           Copy-Item Windows-Kernel-Scanner.cpp kernel-out\windows\
           Copy-Item ChaiverosScanner.vcxproj kernel-out\windows\
-          if (Test-Path x64\Release\ChaiverosScanner.sys) {
-            Copy-Item x64\Release\ChaiverosScanner.sys kernel-out\windows\
+          if (Test-Path ChaiverosScanner.sys) {
+            Copy-Item ChaiverosScanner.sys kernel-out\windows\
             "✓ .sys built" | Out-File kernel-out\windows\BUILD_INFO.txt
           } else {
             "⚠ .sys not built — WDK source included for local compile" | Out-File kernel-out\windows\BUILD_INFO.txt
