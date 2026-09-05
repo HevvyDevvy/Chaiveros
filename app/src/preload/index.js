@@ -29,7 +29,10 @@ const VALID_INVOKE = new Set([
   'log:export',
   'dialog:openFile',
   'dialog:saveFile',
-  'app:version'
+  'app:version',
+  'recovery:preview',
+  'recovery:run',
+  'recovery:undo'
 ])
 
 const VALID_ON = new Set([
@@ -66,6 +69,14 @@ contextBridge.exposeInMainWorld('rwd', {
     export: (destPath)     => ipcRenderer.invoke('log:export', destPath),
     clear: ()              => ipcRenderer.send('log:clear'),
     getPath: ()            => ipcRenderer.invoke('log:getPath')
+  },
+
+  // Recovery (Rescue) — file / directory / full-system decryption
+  recovery: {
+    preview: (scope, target, opts) => ipcRenderer.invoke('recovery:preview', { scope, target, opts }),
+    run:     (scope, target, keyHex, algorithm, opts) =>
+      ipcRenderer.invoke('recovery:run', { scope, target, keyHex, algorithm, opts }),
+    undo:    () => ipcRenderer.invoke('recovery:undo')
   },
 
   // Dialogs
