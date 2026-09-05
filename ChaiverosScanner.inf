@@ -1,0 +1,60 @@
+;
+; ChaiverosScanner.inf
+; Chaveiros Ransomware Defense — Kernel Mode Driver
+; Blu Corbel @ TheMadHattersPlayground.com
+;
+; Submit this package to Microsoft Partner Center for attestation signing.
+; Device class: SecurityDevices (pre-defined Windows class)
+;
+
+[Version]
+Signature           = "$WINDOWS NT$"
+Class               = SecurityDevices
+ClassGuid           = {d94ee5d8-d189-4994-83d2-f68d7d41b0e4}
+Provider            = %ManufacturerName%
+DriverVer           = 09/05/2026,1.0.0.0
+CatalogFile         = ChaiverosScanner.cat
+PnpLockDown         = 1
+
+[DestinationDirs]
+DefaultDestDir = 12  ; DIRID_DRIVERS — \Windows\System32\drivers
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles]
+ChaiverosScanner.sys = 1,,
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64
+
+[Standard.NTamd64]
+%DeviceName% = ChaiverosScanner_Install, Root\ChaiverosScanner
+
+; ── Installation ─────────────────────────────────────────────────────────
+[ChaiverosScanner_Install.NT]
+CopyFiles = ChaiverosScanner_CopyFiles
+
+[ChaiverosScanner_CopyFiles]
+ChaiverosScanner.sys
+
+; ── Service ───────────────────────────────────────────────────────────────
+[ChaiverosScanner_Install.NT.Services]
+AddService = ChaiverosScanner, %SPSVCINST_ASSOCSERVICE%, ChaiverosScanner_ServiceInstall
+
+[ChaiverosScanner_ServiceInstall]
+DisplayName    = %ServiceName%
+Description    = %ServiceDescription%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START  (app controls start/stop)
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\ChaiverosScanner.sys
+
+; ── Strings ───────────────────────────────────────────────────────────────
+[Strings]
+SPSVCINST_ASSOCSERVICE  = 0x00000002
+ManufacturerName        = "Blu Corbel"
+DiskName                = "Chaveiros Installation Disk"
+DeviceName              = "Chaveiros Ransomware Key Scanner"
+ServiceName             = "ChaiverosScanner"
+ServiceDescription      = "Chaveiros kernel-mode encryption key interception for ransomware defense. Makes no outbound network calls."
