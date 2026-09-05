@@ -123,7 +123,7 @@ jobs:
             /I "$wdkInc\km" /I "$wdkInc\shared" /I "$wdkInc\ucrt" `
             /D NDEBUG /D _AMD64_=1 /D AMD64 /D _WIN64 `
             /D _WIN32_WINNT=0x0A00 /D WINVER=0x0A00 /D WINNT=1 `
-            /D POOL_NX_OPTIN=1 /D NTSTRSAFE_LIB `
+            /D POOL_NX_OPTIN=1 `
             Windows-Kernel-Scanner.cpp /Fo:ChaiverosScanner.obj
 
           if (Test-Path ChaiverosScanner.obj) {
@@ -131,7 +131,7 @@ jobs:
               /SUBSYSTEM:NATIVE,10.00 /MACHINE:X64 /KERNEL /ENTRY:DriverEntry `
               /PDB:ChaiverosScanner.pdb /OUT:ChaiverosScanner.sys `
               /LIBPATH:"$wdkLib\km\x64" `
-              ntoskrnl.lib hal.lib wmilib.lib ntstrsafe.lib ChaiverosScanner.obj
+              ntoskrnl.lib hal.lib wmilib.lib ChaiverosScanner.obj
           }
 
 

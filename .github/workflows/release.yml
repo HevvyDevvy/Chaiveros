@@ -146,6 +146,10 @@ jobs:
             Write-Host "⚠ No kernel artifact — continuing without"
           }
 
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Download Npcap SDK
         shell: pwsh
         run: |
