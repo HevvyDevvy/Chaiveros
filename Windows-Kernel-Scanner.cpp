@@ -1,5 +1,4 @@
 #include <ntddk.h>
-#include <ntstrsafe.h>
 
 #define LOG_FILE L"\\??\\C:\\logs\\encryption_keys.log"
 #define ALERT_THRESHOLD 5
@@ -7,6 +6,38 @@
 static int key_creation_count = 0;
 UNICODE_STRING log_file_name;
 HANDLE log_file_handle = NULL;
+
+// Minimal, dependency-free helpers to build the log line.
+// Deliberately avoid ntstrsafe.h and any printf-family call: the kernel
+// build has no reliable prebuilt ntstrsafe.lib to link against, and the
+// header's inline fallback path pulls in a UCRT symbol
+// (__stdio_common_vswprintf) that isn't resolvable in a kernel binary.
+// wcslen/wcscpy-style loops below compile to plain code under /kernel —
+// no external symbols, nothing to link.
+
+static WCHAR* AppendWStr(WCHAR* dst, const WCHAR* end, const WCHAR* src) {
+    while (*src && dst < end) { *dst++ = *src++; }
+    return dst;
+}
+
+static WCHAR* AppendULong(WCHAR* dst, const WCHAR* end, ULONG value) {
+    WCHAR tmp[16];
+    int n = 0;
+    if (value == 0) { if (dst < end) *dst++ = L'0'; return dst; }
+    while (value > 0 && n < 16) { tmp[n++] = L'0' + (WCHAR)(value % 10); value /= 10; }
+    while (n > 0 && dst < end) { *dst++ = tmp[--n]; }
+    return dst;
+}
+
+static WCHAR* AppendLongLong(WCHAR* dst, const WCHAR* end, LONGLONG value) {
+    if (value < 0) { if (dst < end) *dst++ = L'-'; value = -value; }
+    WCHAR tmp[24];
+    int n = 0;
+    if (value == 0) { if (dst < end) *dst++ = L'0'; return dst; }
+    while (value > 0 && n < 24) { tmp[n++] = L'0' + (WCHAR)(value % 10); value /= 10; }
+    while (n > 0 && dst < end) { *dst++ = tmp[--n]; }
+    return dst;
+}
 
 void log_key_creation(PEPROCESS process, const WCHAR* key) {
     if (log_file_handle == NULL) {
@@ -37,14 +68,21 @@ void log_key_creation(PEPROCESS process, const WCHAR* key) {
     }
 
     WCHAR log_entry[256];
+    const WCHAR* log_entry_end = log_entry + (sizeof(log_entry) / sizeof(WCHAR)) - 1; // reserve room for NUL
     LARGE_INTEGER current_time;
     KeQuerySystemTime(&current_time);
-    RtlStringCchPrintfW(log_entry, sizeof(log_entry) / sizeof(WCHAR),
-                         L"PID: %lu | Key Created: %ws | Timestamp: %lld\r\n",
-                         HandleToULong(PsGetProcessId(process)), key, current_time.QuadPart);
 
-    size_t entry_chars = 0;
-    RtlStringCchLengthW(log_entry, sizeof(log_entry) / sizeof(WCHAR), &entry_chars);
+    WCHAR* p = log_entry;
+    p = AppendWStr(p, log_entry_end, L"PID: ");
+    p = AppendULong(p, log_entry_end, HandleToULong(PsGetProcessId(process)));
+    p = AppendWStr(p, log_entry_end, L" | Key Created: ");
+    p = AppendWStr(p, log_entry_end, key);
+    p = AppendWStr(p, log_entry_end, L" | Timestamp: ");
+    p = AppendLongLong(p, log_entry_end, current_time.QuadPart);
+    p = AppendWStr(p, log_entry_end, L"\r\n");
+    *p = L'\0';
+
+    size_t entry_chars = p - log_entry;
 
     IO_STATUS_BLOCK write_status_block;
     ZwWriteFile(log_file_handle, NULL, NULL, NULL, &write_status_block,
