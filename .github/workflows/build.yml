@@ -99,7 +99,22 @@ jobs:
         continue-on-error: true
         run: |
           $wdkBase = "C:\Program Files (x86)\Windows Kits\10"
-          $wdkVer  = (Get-ChildItem "$wdkBase\Include" | Where-Object {$_.Name -match '^\d+'} | Sort-Object -Descending | Select-Object -First 1).Name
+          # Don't just grab the highest version number — the Visual Studio-bundled
+          # SDK folder (e.g. 26100) sorts higher than the WDK's own SDK folder
+          # (e.g. 22000) but has no km\ headers at all. Pick whichever version
+          # folder actually contains ntddk.h.
+          $wdkVer = Get-ChildItem "$wdkBase\Include" | Where-Object {
+            $_.Name -match '^\d+' -and (Test-Path (Join-Path $_.FullName 'km\ntddk.h'))
+          } | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty Name
+
+          if (-not $wdkVer) {
+            Write-Host "⚠ No SDK version folder with km\ntddk.h found under $wdkBase\Include — listing what's there:"
+            Get-ChildItem "$wdkBase\Include" | ForEach-Object {
+              Write-Host "  $($_.Name) — km present: $(Test-Path (Join-Path $_.FullName 'km'))"
+            }
+            exit 0
+          }
+
           $wdkInc  = "$wdkBase\Include\$wdkVer"
           $wdkLib  = "$wdkBase\Lib\$wdkVer"
           Write-Host "WDK: $wdkVer — ntddk.h exists: $(Test-Path $wdkInc\km\ntddk.h)"
@@ -108,7 +123,7 @@ jobs:
             /I "$wdkInc\km" /I "$wdkInc\shared" /I "$wdkInc\ucrt" `
             /D NDEBUG /D _AMD64_=1 /D AMD64 /D _WIN64 `
             /D _WIN32_WINNT=0x0A00 /D WINVER=0x0A00 /D WINNT=1 `
-            /D POOL_NX_OPTIN=1 /D _KERNEL_MODE `
+            /D POOL_NX_OPTIN=1 `
             Windows-Kernel-Scanner.cpp /Fo:ChaiverosScanner.obj
 
           if (Test-Path ChaiverosScanner.obj) {
