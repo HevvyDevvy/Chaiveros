@@ -159,11 +159,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Force msvs_version for node-gyp
-        shell: pwsh
-        run: |
-          echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
-
       - name: Install + rebuild
         working-directory: app
         run: |
