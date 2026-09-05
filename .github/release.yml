@@ -163,7 +163,6 @@ jobs:
         shell: pwsh
         run: |
           echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
-          npm config set msvs_version 2022 --global
 
       - name: Install + rebuild
         working-directory: app
