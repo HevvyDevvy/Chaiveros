@@ -4,7 +4,7 @@ import { ipcMain, dialog, app } from 'electron'
  * Register all IPC handlers.
  * Called once during app startup with the shared singletons.
  */
-export function registerIpcHandlers({ scanner, secureLog, store }) {
+export function registerIpcHandlers({ scanner, secureLog, store, recovery }) {
 
   // ── Scanner ────────────────────────────────────────────────────────────
 
@@ -62,6 +62,21 @@ export function registerIpcHandlers({ scanner, secureLog, store }) {
 
   ipcMain.on('log:clear', () => {
     secureLog.clear()
+  })
+
+  // ── Recovery (Rescue) ─────────────────────────────────────────────────
+
+  ipcMain.handle('recovery:preview', (_event, { scope, target, opts }) => {
+    return recovery.previewScope(scope, target, opts)
+  })
+
+  ipcMain.handle('recovery:run', async (_event, { scope, target, keyHex, algorithm, opts }) => {
+    const key = Buffer.from(keyHex, 'hex')
+    return recovery.run(scope, target, key, algorithm, { ...opts, confirm: true })
+  })
+
+  ipcMain.handle('recovery:undo', async () => {
+    return recovery.undoLastRun()
   })
 
   // ── Dialogs ────────────────────────────────────────────────────────────

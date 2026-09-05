@@ -3,6 +3,7 @@ import { join } from 'path'
 import { registerIpcHandlers } from './ipc.js'
 import { ScannerOrchestrator } from './scanner/index.js'
 import { SecureLog } from './logger/secure-log.js'
+import { RecoveryEngine } from './recovery/recovery-engine.js'
 import Store from 'electron-store'
 import { checkPrivileges } from './utils/privileges.js'
 
@@ -123,7 +124,9 @@ app.whenReady().then(async () => {
   })
 
   // Register all IPC handlers
-  registerIpcHandlers({ scanner, secureLog, store })
+  const recovery = new RecoveryEngine({ secureLog })
+
+  registerIpcHandlers({ scanner, secureLog, store, recovery })
 
   // Create UI
   const win = createWindow()
